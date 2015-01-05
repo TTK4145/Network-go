@@ -6,31 +6,31 @@ import (
 	"strconv"
 )
 
-var Global_Send_ch chan Udp_message
-var Global_Receive_ch chan Udp_message
-
 var laddr *net.UDPAddr //Local address 
 var baddr *net.UDPAddr //Broadcast address
 
 type Udp_message struct {
 
-	raddr	string  //if receiving raddr=senders address, if sending raddr should be set to "broadcast" or an ip:port
-	data string //TODO: implement another encoding, strings are meh
-	length int //length of received data, in #bytes
+	Raddr		string  //if receiving raddr=senders address, if sending raddr should be set to "broadcast" or an ip:port
+	Data 		string //TODO: implement another encoding, strings are meh
+	Length 	int //length of received data, in #bytes // N/A for sending
 }
 
 
-func Udp_init (localListenPort, broadcastListenPort, message_size int) (err error) {
-	//Creating local listening connections
-	localListenConn, err := net.ListenUDP("udp4", nil)
-	if err != nil { return err }
-	
-	//Generating local address
-	tempAddr := localListenConn.LocalAddr()
-	laddr, err = net.ResolveUDPAddr("udp4",tempAddr.String())
-	
+func Udp_init (localListenPort, broadcastListenPort, message_size int, send_ch, receive_ch chan Udp_message) (err error) {
 	//Generating broadcast address
 	baddr, err = net.ResolveUDPAddr("udp4","255.255.255.255:"+strconv.Itoa(broadcastListenPort))
+	if err != nil { return err }
+	
+	//Generating localaddress
+	tempConn, err := net.DialUDP("udp4", nil ,baddr)	
+	defer tempConn.Close()
+	tempAddr := tempConn.LocalAddr()
+	laddr, err = net.ResolveUDPAddr("udp4",tempAddr.String())
+	laddr.Port = localListenPort
+
+	//Creating local listening connections
+	localListenConn, err := net.ListenUDP("udp4", laddr)
 	if err != nil { return err }
 	
 	//Creating listener on broadcast connection
@@ -40,46 +40,50 @@ func Udp_init (localListenPort, broadcastListenPort, message_size int) (err erro
 		return err 
 	}
 	
-	go udp_receive_server(localListenConn, broadcastListenConn, message_size)
-	go udp_transmit_server(localListenConn, broadcastListenConn)
+	go udp_receive_server(localListenConn, broadcastListenConn, message_size, receive_ch)
+	go udp_transmit_server(localListenConn, broadcastListenConn, send_ch)
 	
-	fmt.Printf("Generating localaddress: Network(): %s \t String(): %s \n ", laddr.Network(), laddr.String()) 
-	fmt.Printf("Generating broadcastaddress: Network(): %s \t String(): %s \n ", baddr.Network(), baddr.String()) 	
+//	fmt.Printf("Generating local address: \t Network(): %s \t String(): %s \n", laddr.Network(), laddr.String()) 
+//	fmt.Printf("Generating broadcast address: \t Network(): %s \t String(): %s \n", baddr.Network(), baddr.String()) 	
 	return err
 }
 
-func udp_transmit_server (lconn, bconn *net.UDPConn){
+
+func udp_transmit_server (lconn, bconn *net.UDPConn, send_ch chan Udp_message){
 	defer func() {
         if r := recover(); r != nil {
             fmt.Println("ERROR in udp_transmit_server: %s \n Closing connection.", r)
 			lconn.Close(); bconn.Close()
         }
     }()		
-    var err error 
-    var n int
+    
+  var err error 
+  var n int
 	
 	for {
-		buf := <- Global_Send_ch
-//				fmt.Printf("Writing %s \n", string(buf))
-		if buf.raddr == "broadcast" {
-			n, err = lconn.WriteToUDP([]byte(buf.data), baddr)
+//		fmt.Printf("udp_transmit_server: waiting on new value on Global_Send_ch \n")
+		msg := <- send_ch
+//		fmt.Printf("Writing %s \n", msg.Data)
+		if msg.Raddr == "broadcast" {
+			n, err = lconn.WriteToUDP([]byte(msg.Data), baddr)
 		} else {
-			raddr, err := net.ResolveUDPAddr("udp", buf.raddr)
+			raddr, err := net.ResolveUDPAddr("udp", msg.Raddr)
 			if (err != nil) {
 				fmt.Printf("Error: udp_transmit_server: could not resolve raddr\n")
 				panic(err)
 			}
-			n, err = lconn.WriteToUDP([]byte(buf.data), raddr)
+			n, err = lconn.WriteToUDP([]byte(msg.Data), raddr)
 		}
 		if (err != nil || n < 0) {
 			fmt.Printf("Error: udp_transmit_server: writing\n")
 			panic(err)
 		}
+//		fmt.Printf("udp_transmit_server: Sent %s to %s \n", msg.Data, msg.Raddr) 
 	}
 }
 
 
-func udp_receive_server (lconn, bconn *net.UDPConn, message_size int){
+func udp_receive_server (lconn, bconn *net.UDPConn, message_size int, receive_ch chan Udp_message){
 	defer func() {
         if r := recover(); r != nil {
             fmt.Println("ERROR in udp_receive_server: %s \n Closing connection.", r)
@@ -97,10 +101,10 @@ func udp_receive_server (lconn, bconn *net.UDPConn, message_size int){
 		select {
 		
 			case buf := <- bconn_rcv_ch:
-				Global_Receive_ch <- buf
+				receive_ch <- buf
 			
 			case buf := <-lconn_rcv_ch:
-				Global_Receive_ch <- buf
+				receive_ch <- buf
 		}
 	}
 }
@@ -117,11 +121,13 @@ func udp_connection_reader(conn *net.UDPConn, message_size int, rcv_ch chan Udp_
 	buf := make ([]byte, message_size)
 		
 	for {
+//		fmt.Printf("udp_connection_reader: Waiting on data from UDPConn\n")
 		n, raddr, err := conn.ReadFromUDP(buf)
+//		fmt.Printf("udp_connection_reader: Received %s from %s \n", string(buf), raddr.String()) 
 		if (err != nil || n < 0 ) {
 			fmt.Printf("Error: udp_connection_reader: reading\n")
 			panic(err)
 		}
-		rcv_ch <- Udp_message{raddr.String(), string(buf), n}
+		rcv_ch <- Udp_message{Raddr:raddr.String(), Data: string(buf), Length:n}
 	}
 }
