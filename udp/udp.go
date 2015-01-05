@@ -48,8 +48,6 @@ func Udp_init (localListenPort, broadcastListenPort, message_size int) (err erro
 	return err
 }
 
-
-//0,5 points to the group who first sends me an email explaining why i dont need to synchronize the reading/tranmitting on the udp-connection
 func udp_transmit_server (lconn, bconn *net.UDPConn){
 	defer func() {
         if r := recover(); r != nil {
