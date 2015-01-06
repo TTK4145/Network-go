@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"Network-go/udp"
+	"time"
 )
 
 func print_udp_message(msg udp.Udp_message){
@@ -12,6 +13,7 @@ func print_udp_message(msg udp.Udp_message){
 
 func node (send_ch, receive_ch chan udp.Udp_message){
 for {
+	time.Sleep(1*time.Second)
 	snd_msg := udp.Udp_message{Raddr:"broadcast", Data:"Hello World", Length:11}
 	fmt.Printf("Sending------\n")
 	send_ch <- snd_msg
@@ -19,7 +21,7 @@ for {
 	fmt.Printf("Receiving----\n")
 	rcv_msg:= <- receive_ch
 	print_udp_message(rcv_msg)
-		}
+	}
 }
 
 
