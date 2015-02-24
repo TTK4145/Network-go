@@ -111,9 +111,7 @@ func tcp_transmit_server (ch chan Tcp_message){
 	for {
 		msg := <- ch
 //		fmt.Println("New message to send")
-		conn_list_mutex.Lock()
 		_ , ok := conn_list[msg.Raddr]
-		conn_list_mutex.Unlock()
 		if (ok != true ){
 			new_tcp_conn(msg.Raddr)	
 		}
@@ -127,11 +125,13 @@ func tcp_transmit_server (ch chan Tcp_message){
 			n, err := sendConn.Write([]byte(msg.Data))	
 			conn_list_mutex.Unlock()
 			if err != nil || n < 0 {
-				fmt.Printf("Error: tcp transmit server \n")
-				panic(err)
+				fmt.Printf("Error: tcp transmit server %s \n",err)
+				conn_list_mutex.Lock()
+				sendConn.Close()
+				delete(conn_list, msg.Raddr)
+				conn_list_mutex.Unlock()
 			}
 		}
-		
 	}
 }
 
@@ -144,7 +144,6 @@ func new_tcp_conn(raddr string) bool{
 		fmt.Println("ERROR: new tcp conn, could not resolve addr")
 		return false
 	}
-
 	for {
 		newConn, err := net.DialTCP("tcp4", nil,  addr)
 		
