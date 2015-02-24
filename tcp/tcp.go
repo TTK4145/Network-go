@@ -67,6 +67,7 @@ func Tcp_init(localListenPort int, send_ch, receive_ch chan Tcp_message) error {
 	
 	for {
 		newConn, err := listener.AcceptTCP()
+		fmt.Println("Received new request for connection")
 		if err != nil {
 			fmt.Printf("Error: accepting tcp conn \n")
 			panic(err)
@@ -94,6 +95,7 @@ func Tcp_init(localListenPort int, send_ch, receive_ch chan Tcp_message) error {
 func tcp_transmit_server (ch chan Tcp_message){
 	for {
 		msg := <- ch
+		fmt.Println("New message to send")
 		
 		_ , ok := conn_list[msg.Raddr]
 		if (ok != true ){
@@ -116,6 +118,7 @@ func tcp_transmit_server (ch chan Tcp_message){
 
 
 func new_tcp_conn(raddr string) bool{
+	fmt.Println("Adding new conn to list")
 	//create address
 	addr, err := net.ResolveTCPAddr("tcp4", raddr)
 	if err != nil {

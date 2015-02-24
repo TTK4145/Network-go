@@ -26,9 +26,6 @@ func main (){
 			fmt.Println("%v Sent: %v", lport,msg)
 			time.Sleep(1*time.Second)	
 		}	
-	
-	
-	
 	}(schan)
 
 	for {
