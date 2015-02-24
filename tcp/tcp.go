@@ -65,6 +65,7 @@ func Tcp_init(localListenPort int, send_ch, receive_ch chan Tcp_message) error {
 	
 	go tcp_transmit_server(send_ch)
 	
+	go func() {
 	for {
 		newConn, err := listener.AcceptTCP()
 		fmt.Println("Received new request for connection")
@@ -94,6 +95,9 @@ func Tcp_init(localListenPort int, send_ch, receive_ch chan Tcp_message) error {
 		}(raddr.String(), newConn, receive_ch)
 		
 	}
+	}()
+	
+	return err
 }
 
 func tcp_transmit_server (ch chan Tcp_message){
