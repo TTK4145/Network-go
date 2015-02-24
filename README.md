@@ -26,4 +26,4 @@ Package Status:
 #####Issue status:
 | Issue | Status | Comments  |
 |-------|--------|-----------|
-| Killing one side causes crash | Not resolved  | When one side of the connection is killed the other side crashes, should add checks for alive connections and close & delete dead connections | 
+| Killing one side causes crash | Initial fix | The sender will try to initiate new contact with the reciever when the receiver is killed | 
