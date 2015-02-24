@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 	"errors"
+	"sync"
 	)
 	
 type Tcp_message struct{
@@ -16,7 +17,7 @@ type Tcp_message struct{
 }
 	
 var conn_list map[string]*net.TCPConn
-	
+var conn_list_mutex = &sync.Mutex{}
 type tcp_conn struct {
 	conn *net.TCPConn
 	receive_ch chan Tcp_message
@@ -78,8 +79,9 @@ func Tcp_init(localListenPort int, send_ch, receive_ch chan Tcp_message) error {
 			panic(err)
 		}
 		raddr := newConn.RemoteAddr()
+		conn_list_mutex.Lock()
 		conn_list[raddr.String()] = newConn
-		
+		conn_list_mutex.Unlock()
 		//setting up a reading server on each new connection
 		go func (raddr string, conn *net.TCPConn, receive_ch chan Tcp_message){ 
 			fmt.Println("Starting new tcp read server")
@@ -87,10 +89,15 @@ func Tcp_init(localListenPort int, send_ch, receive_ch chan Tcp_message) error {
 			for {
 					n, err :=	conn.Read(buf)
 					if err != nil || n < 0 {
-						fmt.Printf("Error: tcp reader\n")
-						panic(err)
+						fmt.Printf("Error: tcp reader - %s \n",err)
+						conn_list_mutex.Lock()
+						conn.Close()
+						delete(conn_list, raddr)
+						conn_list_mutex.Unlock()
+						return 
+					} else {
+						receive_ch <- Tcp_message{Raddr: raddr, Data: string(buf), Length: n}
 					}
-					receive_ch <- Tcp_message{Raddr: raddr, Data: string(buf), Length: n}
 			}		
 		}(raddr.String(), newConn, receive_ch)
 		
@@ -104,23 +111,27 @@ func tcp_transmit_server (ch chan Tcp_message){
 	for {
 		msg := <- ch
 //		fmt.Println("New message to send")
-		
+		conn_list_mutex.Lock()
 		_ , ok := conn_list[msg.Raddr]
+		conn_list_mutex.Unlock()
 		if (ok != true ){
-			new_tcp_conn(msg.Raddr)//dial new tcp4		
+			new_tcp_conn(msg.Raddr)	
 		}
-		
+		conn_list_mutex.Lock()
 		sendConn, ok  := conn_list[msg.Raddr]
 		if (ok != true) {
+			conn_list_mutex.Unlock()
 			err := errors.New("Failed to add newConn to map")
 			panic(err)
+		} else {
+			n, err := sendConn.Write([]byte(msg.Data))	
+			conn_list_mutex.Unlock()
+			if err != nil || n < 0 {
+				fmt.Printf("Error: tcp transmit server \n")
+				panic(err)
+			}
 		}
 		
-		n, err := sendConn.Write([]byte(msg.Data))	
-		if err != nil || n < 0 {
-			fmt.Printf("Error: tcp transmit server \n")
-			panic(err)
-		}
 	}
 }
 
@@ -141,7 +152,9 @@ func new_tcp_conn(raddr string) bool{
 			fmt.Println("DialTCP failed, raddr : %s", raddr)
 				time.Sleep(500*time.Millisecond)
 		} else {
+			conn_list_mutex.Lock()
 			conn_list[raddr] = newConn
+			conn_list_mutex.Unlock()
 			return true//got it BREAK!
 		}
 	}
