@@ -103,7 +103,7 @@ func Tcp_init(localListenPort int, send_ch, receive_ch chan Tcp_message) error {
 func tcp_transmit_server (ch chan Tcp_message){
 	for {
 		msg := <- ch
-		fmt.Println("New message to send")
+//		fmt.Println("New message to send")
 		
 		_ , ok := conn_list[msg.Raddr]
 		if (ok != true ){
