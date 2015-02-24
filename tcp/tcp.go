@@ -68,6 +68,10 @@ func Tcp_init(localListenPort int, send_ch, receive_ch chan Tcp_message) error {
 	for {
 		newConn, err := listener.AcceptTCP()
 		fmt.Println("Received new request for connection")
+		
+		
+		
+		
 		if err != nil {
 			fmt.Printf("Error: accepting tcp conn \n")
 			panic(err)
