@@ -119,9 +119,8 @@ func udp_connection_reader(conn *net.UDPConn, message_size int, rcv_ch chan Udp_
 		}
 	}()
 
-	buf := make([]byte, message_size)
-
 	for {
+		buf := make([]byte, message_size)
 		//		fmt.Printf("udp_connection_reader: Waiting on data from UDPConn\n")
 		n, raddr, err := conn.ReadFromUDP(buf)
 		//		fmt.Printf("udp_connection_reader: Received %s from %s \n", string(buf), raddr.String())
