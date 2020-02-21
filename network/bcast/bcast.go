@@ -9,60 +9,62 @@ import (
 	"strings"
 )
 
-// Encodes received values from `chans` into type-tagged JSON, then broadcasts
+// Transmitter encodes received values from `chans` into type-tagged JSON, then broadcasts
 // it on `port`
-func Transmitter(port int, chans ...interface{}) {
-	checkArgs(chans...)
+func Transmitter(port int, uniqueID string, chans ...interface{}) {
+    checkArgs(chans...)
 
-	n := 0
-	for range chans {
-		n++
-	}
+    n := 0
+    for range chans {
+        n++
+    }
 
-	selectCases := make([]reflect.SelectCase, n)
-	typeNames := make([]string, n)
-	for i, ch := range chans {
-		selectCases[i] = reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(ch),
-		}
-		typeNames[i] = reflect.TypeOf(ch).Elem().String()
-	}
+    selectCases := make([]reflect.SelectCase, n)
+    typeNames := make([]string, n)
+    for i, ch := range chans {
+        selectCases[i] = reflect.SelectCase{
+            Dir:  reflect.SelectRecv,
+            Chan: reflect.ValueOf(ch),
+        }
+        typeNames[i] = reflect.TypeOf(ch).Elem().String()
+    }
 
-	conn := conn.DialBroadcastUDP(port)
-	addr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("255.255.255.255:%d", port))
-	for {
-		chosen, value, _ := reflect.Select(selectCases)
-		buf, _ := json.Marshal(value.Interface())
-		conn.WriteTo([]byte(typeNames[chosen]+string(buf)), addr)
-	}
+    conn := conn.DialBroadcastUDP(port)
+    addr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("255.255.255.255:%d", port))
+    for {
+        chosen, value, _ := reflect.Select(selectCases)
+        buf, _ := json.Marshal(value.Interface())
+        conn.WriteTo([]byte(uniqueID+typeNames[chosen]+string(buf)), addr)
+    }
 }
 
-// Matches type-tagged JSON received on `port` to element types of `chans`, then
+// Receiver matches type-tagged JSON received on `port` to element types of `chans`, then
 // sends the decoded value on the corresponding channel
-func Receiver(port int, chans ...interface{}) {
-	checkArgs(chans...)
+func Receiver(port int, uniqueID string, chans ...interface{}) {
+    checkArgs(chans...)
 
-	var buf [1024]byte
-	conn := conn.DialBroadcastUDP(port)
-	for {
-		n, _, _ := conn.ReadFrom(buf[0:])
-		for _, ch := range chans {
-			T := reflect.TypeOf(ch).Elem()
-			typeName := T.String()
-			if strings.HasPrefix(string(buf[0:n])+"{", typeName) {
-				v := reflect.New(T)
-				json.Unmarshal(buf[len(typeName):n], v.Interface())
+    var buf [1024]byte
+    conn := conn.DialBroadcastUDP(port)
+    for {
+        n, _, _ := conn.ReadFrom(buf[0:])
+        for _, ch := range chans {
+            T := reflect.TypeOf(ch).Elem()
+            typeName := T.String()
+            prefix := uniqueID + typeName
+            if strings.HasPrefix(string(buf[0:n]), prefix) {
+                v := reflect.New(T)
+                json.Unmarshal(buf[len(prefix):n], v.Interface())
 
-				reflect.Select([]reflect.SelectCase{{
-					Dir:  reflect.SelectSend,
-					Chan: reflect.ValueOf(ch),
-					Send: reflect.Indirect(v),
-				}})
-			}
-		}
-	}
+                reflect.Select([]reflect.SelectCase{{
+                    Dir:  reflect.SelectSend,
+                    Chan: reflect.ValueOf(ch),
+                    Send: reflect.Indirect(v),
+                }})
+            }
+        }
+    }
 }
+
 
 // Checks that args to Tx'er/Rx'er are valid:
 //  All args must be channels
