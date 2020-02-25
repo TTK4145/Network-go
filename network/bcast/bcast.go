@@ -46,7 +46,10 @@ func Receiver(port int, chans ...interface{}) {
 	var buf [1024]byte
 	conn := conn.DialBroadcastUDP(port)
 	for {
-		n, _, _ := conn.ReadFrom(buf[0:])
+		n, _, e := conn.ReadFrom(buf[0:])
+		if e != nil {
+			fmt.Printf("bcast.Receiver(%d, ...):ReadFrom() failed: \"%+v\"\n", port, e)
+		}
 		for _, ch := range chans {
 			T := reflect.TypeOf(ch).Elem()
 			typeName := T.String()
