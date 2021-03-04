@@ -3,6 +3,13 @@ Network module for Go (UDP broadcast only)
 
 See [`main.go`](main.go) for usage example. The code is runnable with just `go run main.go`
 
+Add these lines to your `go.mod` file:
+```
+require Network-go v0.0.0
+replace Network-go => ./Network-go
+```
+Where `./Network-go` is the relative path to this folder, after you have downloaded it.
+
 
 Features
 --------
