@@ -15,7 +15,7 @@ func Transmitter(port int, chans ...interface{}) {
 	checkArgs(chans...)
 
 	n := 0
-	for range chans {
+	for _,_ = range chans {
 		n++
 	}
 
@@ -76,7 +76,7 @@ func Receiver(port int, chans ...interface{}) {
 //    so the tests on element type are hand-copied from `encoding/json/encode.go`
 func checkArgs(chans ...interface{}) {
 	n := 0
-	for range chans {
+	for _,_ = range chans {
 		n++
 	}
 	elemTypes := make([]reflect.Type, n)
