@@ -6,21 +6,14 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"strings"
 )
 
 // Encodes received values from `chans` into type-tagged JSON, then broadcasts
 // it on `port`
 func Transmitter(port int, chans ...interface{}) {
 	checkArgs(chans...)
-
-	n := 0
-	for range chans {
-		n++
-	}
-
-	selectCases := make([]reflect.SelectCase, n)
-	typeNames := make([]string, n)
+	typeNames := make([]string, len(chans))
+	selectCases := make([]reflect.SelectCase, len(typeNames))
 	for i, ch := range chans {
 		selectCases[i] = reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
@@ -33,8 +26,12 @@ func Transmitter(port int, chans ...interface{}) {
 	addr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("255.255.255.255:%d", port))
 	for {
 		chosen, value, _ := reflect.Select(selectCases)
-		buf, _ := json.Marshal(value.Interface())
-		conn.WriteTo([]byte(typeNames[chosen]+string(buf)), addr)
+		jsonstr, _ := json.Marshal(value.Interface())
+		ttj, _ := json.Marshal(typeTaggedJSON{
+			TypeId: typeNames[chosen],
+			JSON:   jsonstr,
+		})
+		conn.WriteTo(ttj, addr)
 	}
 }
 
@@ -42,6 +39,10 @@ func Transmitter(port int, chans ...interface{}) {
 // sends the decoded value on the corresponding channel
 func Receiver(port int, chans ...interface{}) {
 	checkArgs(chans...)
+	chansMap := make(map[string]interface{})
+	for _, ch := range chans {
+		chansMap[reflect.TypeOf(ch).Elem().String()] = ch
+	}
 
 	var buf [1024]byte
 	conn := conn.DialBroadcastUDP(port)
@@ -50,21 +51,23 @@ func Receiver(port int, chans ...interface{}) {
 		if e != nil {
 			fmt.Printf("bcast.Receiver(%d, ...):ReadFrom() failed: \"%+v\"\n", port, e)
 		}
-		for _, ch := range chans {
-			T := reflect.TypeOf(ch).Elem()
-			typeName := T.String()
-			if strings.HasPrefix(string(buf[0:n])+"{", typeName) {
-				v := reflect.New(T)
-				json.Unmarshal(buf[len(typeName):n], v.Interface())
 
-				reflect.Select([]reflect.SelectCase{{
-					Dir:  reflect.SelectSend,
-					Chan: reflect.ValueOf(ch),
-					Send: reflect.Indirect(v),
-				}})
-			}
-		}
+		var ttj typeTaggedJSON
+		json.Unmarshal(buf[0:n], &ttj)
+		ch := chansMap[ttj.TypeId]
+		v := reflect.New(reflect.TypeOf(ch).Elem())
+		json.Unmarshal(ttj.JSON, v.Interface())
+		reflect.Select([]reflect.SelectCase{{
+			Dir:  reflect.SelectSend,
+			Chan: reflect.ValueOf(ch),
+			Send: reflect.Indirect(v),
+		}})
 	}
+}
+
+type typeTaggedJSON struct {
+	TypeId string
+	JSON   []byte
 }
 
 // Checks that args to Tx'er/Rx'er are valid:
