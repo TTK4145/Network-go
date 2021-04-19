@@ -54,7 +54,10 @@ func Receiver(port int, chans ...interface{}) {
 
 		var ttj typeTaggedJSON
 		json.Unmarshal(buf[0:n], &ttj)
-		ch := chansMap[ttj.TypeId]
+		ch, ok := chansMap[ttj.TypeId]
+		if !ok {
+			continue
+		}
 		v := reflect.New(reflect.TypeOf(ch).Elem())
 		json.Unmarshal(ttj.JSON, v.Interface())
 		reflect.Select([]reflect.SelectCase{{
