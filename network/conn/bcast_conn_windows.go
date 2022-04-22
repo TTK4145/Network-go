@@ -62,7 +62,7 @@ func DialBroadcastUDP(port int) net.PacketConn {
     }
 
 	conn, err := config.ListenPacket(context.Background(), "udp4", fmt.Sprintf(":%d", port)) 
-    fmt.Println(err)
+	if err != nil { fmt.Println("Error: net.ListenConfig.ListenPacket:", err) }
 
 	return conn
 }
