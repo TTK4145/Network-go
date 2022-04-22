@@ -8,6 +8,8 @@ import (
 	"reflect"
 )
 
+const bufSize = 1024
+
 // Encodes received values from `chans` into type-tagged JSON, then broadcasts
 // it on `port`
 func Transmitter(port int, chans ...interface{}) {
@@ -31,7 +33,14 @@ func Transmitter(port int, chans ...interface{}) {
 			TypeId: typeNames[chosen],
 			JSON:   jsonstr,
 		})
+		if len(ttj) > bufSize {
+		    panic(fmt.Sprintf(
+		        "Tried to send a message longer than the buffer size (length: %d, buffer size: %d)\n\t'%s'\n"+
+		        "Either send smaller packets, or go to network/bcast/bcast.go and increase the buffer size",
+		        len(ttj), bufSize, string(ttj)))
+		}
 		conn.WriteTo(ttj, addr)
+    		
 	}
 }
 
@@ -44,7 +53,7 @@ func Receiver(port int, chans ...interface{}) {
 		chansMap[reflect.TypeOf(ch).Elem().String()] = ch
 	}
 
-	var buf [1024]byte
+	var buf [bufSize]byte
 	conn := conn.DialBroadcastUDP(port)
 	for {
 		n, _, e := conn.ReadFrom(buf[0:])
