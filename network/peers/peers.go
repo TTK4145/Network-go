@@ -1,11 +1,12 @@
 package peers
 
 import (
-	"Network-go/network/conn"
 	"fmt"
 	"net"
 	"sort"
 	"time"
+
+	"github.com/TTK4145/Network-go/network/conn"
 )
 
 type PeerUpdate struct {
