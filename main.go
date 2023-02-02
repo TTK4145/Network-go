@@ -1,18 +1,19 @@
 package main
 
 import (
-	"Network-go/network/bcast"
-	"Network-go/network/localip"
-	"Network-go/network/peers"
 	"flag"
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/TTK4145/Network-go/network/bcast"
+	"github.com/TTK4145/Network-go/network/localip"
+	"github.com/TTK4145/Network-go/network/peers"
 )
 
 // We define some custom struct to send over the network.
-// Note that all members we want to transmit must be public. Any private members
-//  will be received as zero-values.
+// Note that all members we want to transmit must be public.
+// Any private members will be received as zero-values.
 type HelloMsg struct {
 	Message string
 	Iter    int
